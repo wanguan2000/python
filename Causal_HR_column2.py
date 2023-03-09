@@ -141,8 +141,7 @@ class RNA_groupsurvival:
             topcutoff = 0
             X_sort = np.sort(X, axis=0)
             my_std = np.std(X_sort)
-            clustering = DBSCAN(
-                eps=my_std / eps_score, min_samples=my_min_samples).fit(X_sort.reshape(-1, 1))
+            clustering = DBSCAN(eps=0.00001+(my_std / eps_score), min_samples=my_min_samples).fit(X_sort.reshape(-1, 1))
             clustering_diff = (np.diff(clustering.labels_))
             clustering_diff2 = np.where(
                 clustering_diff != 0, 1, clustering_diff)
@@ -179,8 +178,10 @@ class RNA_groupsurvival:
         return negative_difftop1, negative_difftop1_std, negative_difftop2
 
     def get_peaktop(self, negative_numpy, bw_adjust, x_lab):
-        negative_kde = stats.gaussian_kde(
-            dataset=negative_numpy, bw_method='scott')
+        #singular matrix
+        if len(np.unique(negative_numpy)) == 1:
+            negative_numpy = negative_numpy + (np.random.randint(low=1, high=10, size=len(negative_numpy), dtype='l') / 100.0)
+        negative_kde = stats.gaussian_kde(dataset=negative_numpy, bw_method='scott')
         negative_kde.set_bandwidth(negative_kde.factor * bw_adjust)
         negative_density = negative_kde(x_lab)
         negative_peaks, negative_peakheights = find_peaks(
@@ -543,7 +544,7 @@ class RNA_groupsurvival:
             ks_2samp_pvalue = ks_2samp.pvalue
         except:
             ks_2samp_pvalue = 1
-        '''
+        
         waddR_pd_pval = 1
         waddR_pd_dwass2 = 0
         waddR_pd_perc_loc = 0
@@ -558,12 +559,12 @@ class RNA_groupsurvival:
             waddR_pd_perc_shape = waddR_re.perc_shape
         except:
             pass
-        '''
+        
 
         negative_numpy = negative_value
         positive_numpy = positive_value
-
         '''
+        #add singular matrix
         if len(np.unique(negative_numpy)) == 1:
             negative_numpy = negative_numpy + (
                     np.random.randint(low=1, high=10, size=len(negative_numpy), dtype='l') / 100.0)
@@ -575,7 +576,7 @@ class RNA_groupsurvival:
         '''
         negative_top1, negative_top1std, negative_top2, positive_top1, positive_top1std, positive_top2, negative_difftop1, negative_difftop1_std, negative_difftop2, positive_difftop1, positive_difftop1_std, positive_difftop2, cross_top1, cross_top2, negative_DBSCANtop, positive_DBSCANtop = self.getpeak(
             negative_numpy, positive_numpy)
-
+  
         # peak_x = 30
         negative_top1_HR = self.peak_HR(
             negative_top1, negative_group, positive_group, 'negative_top1')
@@ -653,12 +654,12 @@ class RNA_groupsurvival:
              'foldchange_q75': np.quantile(positive_value, 0.75)/(np.quantile(negative_value, 0.75)+0.001),
              'foldchange_q90': np.quantile(positive_value, 0.90)/(np.quantile(negative_value, 0.90)+0.001),
              'ttest': [ttest.pvalue], 'ks_2samp': [ks_2samp_pvalue],
-             # 'waddR_pval': waddR_pd_pval,
+              'waddR_pval': waddR_pd_pval,
              'stand_wassd': self.standardized_wasserstein_distance(positive_value, negative_value),
-             # 'waddR_dwass2': waddR_pd_dwass2,
-             # 'waddR_perc_loc': waddR_pd_perc_loc,
-             # 'waddR_perc_size': waddR_pd_perc_size,
-             # 'waddR_perc_shape': waddR_pd_perc_shape
+              'waddR_dwass2': waddR_pd_dwass2,
+              'waddR_perc_loc': waddR_pd_perc_loc,
+              'waddR_perc_size': waddR_pd_perc_size,
+              'waddR_perc_shape': waddR_pd_perc_shape
              })
 
         HR_result0 = stat_df | negative_top1_HR | negative_top1std_HR | negative_top2_HR | positive_top1_HR | positive_top1std_HR | positive_top2_HR | negative_difftop1_HR | negative_difftop1_std_HR \
