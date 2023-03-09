@@ -17,7 +17,11 @@ import warnings
 import rpy2.robjects as robjects
 from scipy.stats import wasserstein_distance
 
+
 def myrwaddR(a,b):
+    mydata = np.concatenate((a, b), axis=0)
+    if np.allclose(mydata, a[0], equal_nan=True) :
+        return pd.DataFrame(np.array([[1,0,0,0,0]]),columns=['pval', 'dwass2', 'perc_loc','perc_size','perc_shape'])
     rwaddR = robjects.r('''
         library("waddR")
         myf <- function(a,b){
@@ -99,7 +103,7 @@ def logrank_test(d_myfactor, d_survivalMonth, d_death_observed, d_mylength):
 
 
 class RNA_groupsurvival:
-    def __init__(self,mydata_FPKM3, nstep=1000, bw_adjust=0.5, eps_score=10, my_min_samples=7, pvaluecut=0.2, HRcut=0.7):
+    def __init__(self,mydata_FPKM3, nstep=1000, bw_adjust=0.5, eps_score=10, my_min_samples=7, pvaluecut=0.2, HRcut=0.7,cut_pos_1=7, cut_pos_0=7,cut_neg_1=7, cut_neg_0=7):
         self.mydata_FPKM3 = mydata_FPKM3
         self.nstep = nstep
         self.bw_adjust = bw_adjust
@@ -107,8 +111,18 @@ class RNA_groupsurvival:
         self.my_min_samples = my_min_samples
         self.pvaluecut = pvaluecut
         self.HRcut = HRcut
-    
+        self.cut_pos_1 = cut_pos_1
+        self.cut_pos_0 = cut_pos_0
+        self.cut_neg_1 = cut_neg_1
+        self.cut_neg_0 = cut_neg_0
+    def judgeconstant(self,a,b):
+        #np.allclose(a, 1, atol=0.001)
+        mydata = np.concatenate((a, b), axis=0)
+        return np.allclose(mydata, a[0], equal_nan=True) 
+
     def standardized_wasserstein_distance(self, a,b):
+        if self.judgeconstant(a,b):
+            return 0
         numerator = wasserstein_distance(a, b)
         denominator = np.std(np.concatenate([a, b]))
         stand_wassd = 0
@@ -195,6 +209,9 @@ class RNA_groupsurvival:
         return cross_top1, cross_top2,
 
     def getpeak(self, negative_group, positive_group):
+        if self.judgeconstant(negative_group,positive_group):
+            return 0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0
+
         nstep = self.nstep
         bw_adjust = self.bw_adjust
         negative_numpy = negative_group
@@ -336,17 +353,35 @@ class RNA_groupsurvival:
 
         count_neg_pvalue = 0
         count_pos_pvalue = 0
+        
+        select_negcutoff =-1
+        select_negHR =1
+        select_negpavlue =1
+        select_poscutoff =-1
+        select_posHR =1
+        select_pospavlue =1
 
         for i in range(len(mycut)):
-            if (mycut_neg_HR[i] > (1 / HRcut)) and neg_pvalue[i] <= pvaluecut:
+            if (mycut_neg_HR[i] > (1 / HRcut)) and neg_pvalue[i] <= pvaluecut and neg_1[i] > self.cut_neg_1 and neg_0[i] > self.cut_neg_0:
                 count_neg_pvalue = count_neg_pvalue + 1
                 cutoff_neg_HR = np.append(cutoff_neg_HR, mycut[i])
                 cutoff_neg_HR = cutoff_neg_HR[~np.isnan(cutoff_neg_HR)]
+                if mycut_neg_HR[i] > select_negHR:
+                    select_negHR = mycut_neg_HR[i]
+                    select_negpavlue = neg_pvalue[i]
+                    select_negcutoff = mycut[i]
 
-            if mycut_pos_HR[i] < HRcut and pos_pvalue[i] <= pvaluecut:
+
+
+            if mycut_pos_HR[i] < HRcut and pos_pvalue[i] <= pvaluecut and pos_1[i] > self.cut_pos_1 and pos_0[i] > self.cut_pos_0:
                 count_pos_pvalue = count_pos_pvalue + 1
                 cutoff_pos_HR = np.append(cutoff_pos_HR, mycut[i])
                 cutoff_pos_HR = cutoff_pos_HR[~np.isnan(cutoff_pos_HR)]
+                if mycut_pos_HR[i] < select_posHR:
+                    select_posHR = mycut_pos_HR[i]
+                    select_pospavlue = pos_pvalue[i]
+                    select_poscutoff = mycut[i]
+
 
         if not np.isnan(min(cutoff_pos_HR)):
             pos_cut_percent = min(pos_mypercent[np.where(mycut == min(cutoff_pos_HR))])
@@ -394,8 +429,13 @@ class RNA_groupsurvival:
              'count_neg_pvalue': count_neg_pvalue,
              'count_pos_pvalue': count_pos_pvalue,
 
-             'neg_HR_cutoff': min(cutoff_neg_HR),
-             'pos_HR_cutoff': min(cutoff_pos_HR),
+             'select_negcutoff':select_negcutoff,
+             'select_negHR': select_negHR,
+             'select_negpavlue': select_negpavlue,
+             'select_poscutoff':select_poscutoff,
+             'select_posHR': select_posHR,
+             'select_pospavlue': select_pospavlue,
+
              'neg_cut_percent': neg_cut_percent,
              'pos_cut_percent': pos_cut_percent,
 
@@ -411,7 +451,7 @@ class RNA_groupsurvival:
         #gene_FPKM = mydata_FPKM[mydata_FPKM.gene == gene]
         #c1 = mydata_factor.merge(gene_FPKM, left_on='patient_id', right_on='patient_id',how='inner')
         #c1= mydata_FPKM2[[gene,'death_observed','survivalMonth','myscore','mylevel']]
-        c1= self.mydata_FPKM3[[gene,death_observed,survivalMonth,myscore,mylevel]]
+        c1= self.mydata_FPKM3[[gene,death_observed,survivalMonth,myscore,mylevel]].copy()
         c1.loc[:,'fpkm'] = c1[gene]
         try:
             pearson = c1.myscore.corr(c1.fpkm, method='pearson')
@@ -445,7 +485,7 @@ class RNA_groupsurvival:
            ks_2samp_pvalue = ks_2samp.pvalue
         except:
             ks_2samp_pvalue = 1
-
+        '''
         waddR_pd_pval = 1
         waddR_pd_dwass2 = 0
         waddR_pd_perc_loc = 0
@@ -460,6 +500,7 @@ class RNA_groupsurvival:
             waddR_pd_perc_shape = waddR_re.perc_shape
         except:
             pass
+        '''
         
         negative_numpy = negative_value
         if len(np.unique(negative_numpy)) == 1:
@@ -530,12 +571,12 @@ class RNA_groupsurvival:
              'foldchange_q75': np.quantile(positive_value,0.75)/(np.quantile(negative_value,0.75)+0.001),
              'foldchange_q90': np.quantile(positive_value,0.90)/(np.quantile(negative_value,0.90)+0.001),
              'ttest': [ttest.pvalue], 'ks_2samp': [ks_2samp_pvalue],
-             'waddR_pval': waddR_pd_pval,
+             #'waddR_pval': waddR_pd_pval,
              'stand_wassd': self.standardized_wasserstein_distance(positive_value,negative_value),
-             'waddR_dwass2': waddR_pd_dwass2,
-             'waddR_perc_loc': waddR_pd_perc_loc,
-             'waddR_perc_size': waddR_pd_perc_size,
-             'waddR_perc_shape': waddR_pd_perc_shape
+             #'waddR_dwass2': waddR_pd_dwass2,
+             #'waddR_perc_loc': waddR_pd_perc_loc,
+             #'waddR_perc_size': waddR_pd_perc_size,
+             #'waddR_perc_shape': waddR_pd_perc_shape
              })
 
         HR_result0 = stat_df | negative_top1_HR | negative_top1std_HR | negative_top2_HR | positive_top1_HR | positive_top1std_HR | positive_top2_HR | negative_difftop1_HR | negative_difftop1_std_HR \
