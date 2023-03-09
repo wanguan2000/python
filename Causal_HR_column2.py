@@ -713,7 +713,7 @@ class RNA_groupsurvival:
             HRcorr_df = self.HR_corr(gene, HR_result)
             all_result = HR_result.merge(HRcorr_df, left_on='gene', right_on='gene')
 
-        print(all_result)
+        #print(all_result)
         # positive_difftop1_cut-negative_difftop1_cut
         all_result.loc[:, 'CS_BFscore'] = (
             all_result['positive_difftop1_cut'] - all_result['negative_difftop1_cut'])
