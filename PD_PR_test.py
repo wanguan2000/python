@@ -7,7 +7,7 @@ from sqlalchemy import create_engine, text
 import scipy as scipy
 from scipy.stats import wasserstein_distance
 
-myfile = '/share_storage/home/nacoo/DI/20230425/GCKB-WES-202210-patients_en.csv'
+myfile = 'GCKB-WES-202210-patients_en.csv'
 mydata = pd.read_csv(myfile, sep='\t', low_memory=False)
 mydata_RNA = mydata[mydata['projectTypes'].str.contains('RNA')]
 mydata_RNA_mutations = mydata_RNA[['code', 'mutations','tmb']].copy()
@@ -15,8 +15,8 @@ mydata_RNA_mutations = mydata_RNA_mutations.query('tmb > 100')
 print(mydata_RNA_mutations)
 code_RNA_tmb100 = (list(mydata_RNA_mutations.code))
 
-data_snp='/share_storage/home/nacoo/DI/20230425/code_RNA_tmb100_snp2.xls'
-data_indel='/share_storage/home/nacoo/DI/20230425/code_RNA_tmb100_indel2.xls'
+data_snp='code_RNA_tmb100_snp2.xls'
+data_indel='code_RNA_tmb100_indel2.xls'
 
 mydata_snp = pd.read_csv(data_snp, sep='\t', low_memory=False,index_col=0)
 mydata_snp = mydata_snp[["patient_id", "normal_id", "tumor_id", "project_id","symbol"]]
@@ -30,7 +30,7 @@ counts40 = counts[counts > 10]
 counts40dict = counts40.to_dict()
 counts40dict['RPA1']
 ##RNA
-myRNA='/share_storage/home/nacoo/DI/20230425/all_RNA.csv'
+myRNA='20230425/all_RNA.csv'
 mydata_RNA = pd.read_csv(myRNA, sep='\t', low_memory=False)
 mydata_RNA2=mydata_RNA[["patient_id", "gene","fpkm"]]
 mydata_RNA2 = mydata_RNA2.drop_duplicates()
@@ -95,6 +95,6 @@ for gene in counts40dict.keys():
     re_distrutiontest.append(jie1)
 
 resultre = pd.concat(re_distrutiontest, ignore_index=True)
-resultre.to_csv('/share_storage/home/nacoo/DI/20230425/mutations10_%s_ok1.xls' % RNA_gene, sep='\t',index=False)
+resultre.to_csv('mutations10_%s_ok1.xls' % RNA_gene, sep='\t',index=False)
 
 
